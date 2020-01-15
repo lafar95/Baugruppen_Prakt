@@ -1,5 +1,6 @@
 //Software: Kippspiegel Gerät
 //Autor: Rafal Andrejczuk
+//Beendet am 15.01.2020
 
 #include <EEPROM.h>
 
@@ -14,18 +15,17 @@
 //Motorsteuerung
 #define CLOCK 3       //externer Takt   
 #define CW 2          //(eng. clockwise) Drehrichtungssinn   
-#define DRIVER_ENABLE   //EIN/AUS Treiber
+#define DE 9  //EIN/AUS Treiber (DE- Driver Enable)
                         
-static int motor_position = 0;
-const int motor_referenzpos = 0;
+int adresse = 0; //Adresse in dem EEPROM-Speicher, wo der aktuelle Schritt gespeichert ist
 
 //-------------------------------------------------------------------------------------------------------------------------                      
 void setup() {
   
-//  Serial.begin(9600); //Kommunikation mit PC via USB
-//  
-//  while(!Serial){ //Endlosschleife, wartet bis die Komm. aufgebaut ist 
-//    }
+  Serial.begin(9600); //Kommunikation mit PC via USB
+  
+  while(!Serial){ //Endlosschleife, wartet bis die Komm. aufgebaut ist 
+    }
   
   pinMode(kippS, INPUT_PULLUP);
   pinMode(tastS, INPUT_PULLUP);
@@ -36,7 +36,8 @@ void setup() {
   
   pinMode(CLOCK, OUTPUT);
   pinMode(CW, OUTPUT);
-
+  pinMode(DE, OUTPUT);
+  
   //Initialisieren
   
   digitalWrite(led_gelb, LOW);
@@ -45,52 +46,72 @@ void setup() {
   
   digitalWrite(CLOCK, LOW);
   digitalWrite(CW, LOW);
+  digitalWrite(DE, LOW);
+
+  //EEPROM.put(adresse, 0); //nur einmal mit dieser Zeile laufen lassen
+  
+  home_position();
   }
 
 //-------------------------------------------------------------------------------------------------------------------------  
 void loop(){
 
   if(kippS_state()){
-    dreh_links(5);
-    dreh_rechts(5);
+    
+    dreh_rechts(12,100);
+    dreh_links(12,100);
+    
   }
   else if(taster_gedrueckt_worden() && !kippS_state()){
-    dreh_links(2);
-    delay(1000);
-    dreh_rechts(2);
+    
+    dreh_rechts(2,100);
+    delay(3000);
+    dreh_links(2,100);
   }
 }
 //-------------------------------------------------------------------------------------------------------------------------
 //Parameter int a - Anzahl der Schritte
-void dreh_links(int a){
-  
+//Parameter int periode - Periode in ms
+void dreh_links(int a, int periode){
+
+    
+    digitalWrite(led_gelb, HIGH);
+    digitalWrite(DE, HIGH);
     digitalWrite(CW, LOW);
     delay(50);
-    digitalWrite(led_gelb, HIGH);
   
   for( int i=0; i<a; i++ ){
     digitalWrite(CLOCK, HIGH);
+    EEPROM.put(adresse, EEPROM.read(adresse) - 1);
+    Serial.println(EEPROM.read(adresse));
     digitalWrite(CLOCK, LOW);
-    delay(100);
+    delay(periode);
+    
     }
 
-    digitalWrite(led_gelb, LOW);
     
+    digitalWrite(led_gelb, LOW);
+    digitalWrite(DE, LOW);
   }
   //Parameter int a - Anzahl der Schritte
-  void dreh_rechts(int a){
+  //Parameter int periode - Periode in ms
+  void dreh_rechts(int a, int periode){
 
+    digitalWrite(led_rot, HIGH);
+    digitalWrite(DE, HIGH);
     digitalWrite(CW, HIGH);
     delay(50);
-    digitalWrite(led_rot, HIGH);
     
   for( int i=0; i<a ; i++ ){
     digitalWrite(CLOCK, HIGH);
+    EEPROM.put(adresse, EEPROM.read(adresse) + 1);
+    Serial.println(EEPROM.read(adresse));
     digitalWrite(CLOCK, LOW);
-    delay(100);
+    delay(periode);
     }
 
     digitalWrite(led_rot, LOW);
+    digitalWrite(DE, LOW);
     
   }
   
@@ -99,7 +120,7 @@ void dreh_links(int a){
     
     boolean tastS_state = digitalRead(tastS);
     unsigned long delta_zeit;
-    static byte flag = 0; //gedruckt gehalten
+    static byte flag = 0; //gedruckt gehalten flag
     
     if(tastS_state == LOW){
       static unsigned long zp_alt = millis();
@@ -161,6 +182,12 @@ void dreh_links(int a){
       }    
   }
 //Anhand der Position gespeichert im EEPROM wird zuerst in in HOME-Position gefahren
-    void home_fahren(){
+//Referenzlage wird erreicht, wenn der aktuelle Schritt den Wert Null erreicht
+    void home_position(){
+      
+      int akt_schritt = EEPROM.read(adresse);
+      
+      if(akt_schritt != 0)
+      dreh_links(akt_schritt,100);
     }
     
