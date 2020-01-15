@@ -1,65 +1,167 @@
 //Software: Kippspiegel Gerät
 //Autor: Rafal Andrejczuk
-#include <Bounce2.h>
 
+#include <EEPROM.h>
 
-#define kippS 4 //Modus 1
-#define tastS 2 //Modus 2
+#define kippS 5 //Modus 1
+#define tastS 4 //Modus 2
+
 
 #define led_gelb 7   //Widerstand-Wert(gelb): 220 Ohm
-#define led_rot 12   //Widerstand-Wert(rot): 220 Ohm
+#define led_rot 8   //Widerstand-Wert(rot): 220 Ohm
+#define led_gruen 6
 
 //Motorsteuerung
-#define CLOCK           //PIN 5, Schritt wird bei jeder negativen Flanke des Eingangssignales geschalten, Achtung: internen Takt unbedingt abschalten (SW1=OFF)!
-#define CW              //PIN 4, Drehrichtung, offener Eingang wird als High-Signal interpretiert, Low-Signal führt zum Richtungswechsel (5V am Pin führt zum Richtungswechsel)
-#define DRIVER_ENABLE   //PIN 2, offener Eingang wird als High-Signal interpretiert, bei High-Signal stoppt Motor die Bewegung, Motorphasen sind unbestromt!
-                        //bei Low-Signal erfolgt Bestromung, Achtung: vor Benutzung Konfigurationsschalter abschalten (SW3=OFF), sonst immer aktiv (5V am Pin führt zum Einschalten)
+#define CLOCK 3       //externer Takt   
+#define CW 2          //(eng. clockwise) Drehrichtungssinn   
+#define DRIVER_ENABLE   //EIN/AUS Treiber
+                        
+static int motor_position = 0;
+const int motor_referenzpos = 0;
 
-// Instanzieren von einem Bounce Objekt
-Bounce entpreller1 = Bounce();
-Bounce entpreller2 = Bounce();  
-                      
+//-------------------------------------------------------------------------------------------------------------------------                      
 void setup() {
   
-pinMode(kippS, INPUT_PULLUP);
-pinMode(tastS, INPUT_PULLUP);
-pinMode(led_gelb, OUTPUT);
-pinMode(led_rot, OUTPUT);
+  Serial.begin(9600); //Kommunikation mit PC via USB
+  
+  while(!Serial){ //Endlosschleife, wartet bis die Komm. aufgebaut ist 
+    }
+  
+  pinMode(kippS, INPUT_PULLUP);
+  pinMode(tastS, INPUT_PULLUP);
+  
+  pinMode(led_gelb, OUTPUT);
+  pinMode(led_rot, OUTPUT);
+  pinMode(led_gruen, OUTPUT);
+  
+  pinMode(CLOCK, OUTPUT);
+  pinMode(CW, OUTPUT);
 
-//Setup von der Bounce Instanz
-entpreller1.attach(tastS);
-entpreller1.interval(5); // interval in ms
+  //Initialisieren
+  
+  digitalWrite(led_gelb, LOW);
+  digitalWrite(led_rot, LOW);
+  digitalWrite(led_gruen, LOW);
+  
+  digitalWrite(CLOCK, LOW);
+  digitalWrite(CW, LOW);
+  }
 
-entpreller2.attach(kippS);
-entpreller2.interval(5); // interval in ms
+//-------------------------------------------------------------------------------------------------------------------------  
+void loop(){
 
-//init
-digitalWrite(led_gelb,LOW);
-digitalWrite(led_rot,LOW);
+  if(kippS_state()){
+    digitalWrite(led_rot, HIGH);
+    delay(1000);
+    digitalWrite(led_rot, LOW);
+    digitalWrite(led_gelb, HIGH);
+    delay(1000);
+    digitalWrite(led_gelb, LOW);
+  }
+  else if(taster_gedrueckt_worden() && !kippS_state()){
+    digitalWrite(led_gruen, HIGH);
+    delay(100);
+    digitalWrite(led_gruen, LOW);
+    delay(100);
+  }
+  else{}
 }
+//-------------------------------------------------------------------------------------------------------------------------
+//Parameter int a - Anzahl der Schritte
+void dreh_links(int a){
+  
+    digitalWrite(CW, LOW);
+    delay(50);
+    digitalWrite(led_gelb, HIGH);
+  
+  for( int i=0; i<a; i++ ){
+    digitalWrite(CLOCK, HIGH);
+    digitalWrite(CLOCK, LOW);
+    delay(100);
+    }
 
-void loop() {
-  
-  //Aktualisiere von der Bounce Instanz
-  entpreller1.update();
-  entpreller2.update();
-  
-  //lesen des aktualisierten Wertes
-  int tastS_state = entpreller1.read();
-  int kippS_state = entpreller2.read();
-  
-  if (tastS_state == LOW){
-    digitalWrite(led_rot,HIGH);
+    digitalWrite(led_gelb, LOW);
+    
   }
-  else {
-    digitalWrite(led_rot,LOW);  
-  }
-    if (kippS_state == LOW){
-    digitalWrite(led_gelb,HIGH);
-  }
-  else {
-    digitalWrite(led_gelb,LOW);  
+  //Parameter int a - Anzahl der Schritte
+  void dreh_rechts(int a){
+
+    digitalWrite(CW, HIGH);
+    delay(50);
+    digitalWrite(led_rot, HIGH);
+    
+  for( int i=0; i<a ; i++ ){
+    digitalWrite(CLOCK, HIGH);
+    digitalWrite(CLOCK, LOW);
+    delay(100);
+    }
+
+    digitalWrite(led_rot, LOW);
+    
   }
   
-  
-}
+//Tasterlesen
+  boolean taster_gedrueckt_worden(){
+    
+    boolean tastS_state = digitalRead(tastS);
+    
+    if(tastS_state == LOW){
+      static unsigned long zp_alt = millis();
+      unsigned long zp_neu = millis();
+      unsigned long delta_zeit = zp_neu - zp_alt;
+      int prell_zeit = 500;
+      
+      if (delta_zeit >= prell_zeit){
+        zp_alt = zp_neu;
+        delta_zeit = 0;
+        Serial.println(delta_zeit);
+      }
+      else if(delta_zeit == 0){
+        Serial.println(delta_zeit);
+        return true;
+      }
+      else if(delta_zeit < prell_zeit){
+        Serial.println(delta_zeit);
+        return false; 
+      }
+            
+      }
+      else {return false;}
+    }
+//Kippschalter lesen
+  boolean kippS_state(){
+    
+    boolean kippS_state = digitalRead(kippS);
+    unsigned long delta_zeit;
+    int prell_zeit = 100;
+    
+    if(kippS_state == LOW){
+      static unsigned long zp_alt = millis();
+      unsigned long zp_neu = millis();
+      delta_zeit = zp_neu - zp_alt;
+      
+      if (delta_zeit >= prell_zeit){
+        zp_alt = zp_neu;
+        delta_zeit = 0;
+        Serial.println(delta_zeit);
+      }
+      if(delta_zeit == 0){
+        Serial.println(delta_zeit);
+        return true;
+      }
+      else if(delta_zeit < prell_zeit){
+        Serial.println(delta_zeit);
+        return true; 
+      }
+            
+      }
+      else {
+        if (delta_zeit == 0){
+          return false;
+        }
+      }    
+  }
+//Anhand der Position gespeichert im EEPROM wird zuerst in in HOME-Position gefahren
+    void home_fahren(){
+    }
+    
