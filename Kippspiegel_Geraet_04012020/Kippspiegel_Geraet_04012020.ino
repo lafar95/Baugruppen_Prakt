@@ -22,10 +22,10 @@ const int motor_referenzpos = 0;
 //-------------------------------------------------------------------------------------------------------------------------                      
 void setup() {
   
-  Serial.begin(9600); //Kommunikation mit PC via USB
-  
-  while(!Serial){ //Endlosschleife, wartet bis die Komm. aufgebaut ist 
-    }
+//  Serial.begin(9600); //Kommunikation mit PC via USB
+//  
+//  while(!Serial){ //Endlosschleife, wartet bis die Komm. aufgebaut ist 
+//    }
   
   pinMode(kippS, INPUT_PULLUP);
   pinMode(tastS, INPUT_PULLUP);
@@ -51,20 +51,14 @@ void setup() {
 void loop(){
 
   if(kippS_state()){
-    digitalWrite(led_rot, HIGH);
-    delay(1000);
-    digitalWrite(led_rot, LOW);
-    digitalWrite(led_gelb, HIGH);
-    delay(1000);
-    digitalWrite(led_gelb, LOW);
+    dreh_links(5);
+    dreh_rechts(5);
   }
   else if(taster_gedrueckt_worden() && !kippS_state()){
-    digitalWrite(led_gruen, HIGH);
-    delay(100);
-    digitalWrite(led_gruen, LOW);
-    delay(100);
+    dreh_links(2);
+    delay(1000);
+    dreh_rechts(2);
   }
-  else{}
 }
 //-------------------------------------------------------------------------------------------------------------------------
 //Parameter int a - Anzahl der Schritte
@@ -104,29 +98,34 @@ void dreh_links(int a){
   boolean taster_gedrueckt_worden(){
     
     boolean tastS_state = digitalRead(tastS);
+    unsigned long delta_zeit;
+    static byte flag = 0; //gedruckt gehalten
     
     if(tastS_state == LOW){
       static unsigned long zp_alt = millis();
       unsigned long zp_neu = millis();
-      unsigned long delta_zeit = zp_neu - zp_alt;
+      delta_zeit = zp_neu - zp_alt;
       int prell_zeit = 500;
+
       
       if (delta_zeit >= prell_zeit){
+        if(flag == 1){
+          return false;
+          }
         zp_alt = zp_neu;
-        delta_zeit = 0;
-        Serial.println(delta_zeit);
       }
       else if(delta_zeit == 0){
-        Serial.println(delta_zeit);
+        flag = 1;
         return true;
       }
       else if(delta_zeit < prell_zeit){
-        Serial.println(delta_zeit);
         return false; 
       }
             
       }
-      else {return false;}
+      else {
+        flag = 0;
+        return false;}
     }
 //Kippschalter lesen
   boolean kippS_state(){
